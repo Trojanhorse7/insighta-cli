@@ -1,6 +1,14 @@
 # Insighta CLI
 
-Python CLI for the **Insighta Labs+** profiles API (`../STAGE_ONE`). Commands send `X-API-Version: 1` and `Authorization: Bearer`, refresh access tokens on **401**, and store secrets in **`~/.insighta/credentials.json`** (0600).
+Python CLI for the **Insighta Labs+** profiles API. Commands send `X-API-Version: 1` and `Authorization: Bearer`, refresh access tokens on **401**, and store secrets in **`~/.insighta/credentials.json`** (0600).
+
+**Repository:** [github.com/Trojanhorse7/insighta-cli](https://github.com/Trojanhorse7/insighta-cli) · **Web portal:** [github.com/Trojanhorse7/insighta-frontend](https://github.com/Trojanhorse7/insighta-frontend)
+
+Install from Git:
+
+```bash
+python -m pip install "git+https://github.com/Trojanhorse7/insighta-cli.git"
+```
 
 ## Install
 
@@ -24,7 +32,7 @@ python -m insighta_cli --help
 | `INSIGHTA_GITHUB_CLIENT_ID` | GitHub OAuth App **client id** — must match **`GITHUB_CLIENT_ID`** on the API server. |
 | `INSIGHTA_CLI_OAUTH_REDIRECT` | Loopback callback URL (default `http://127.0.0.1:8765/callback`). **Register this** in the GitHub OAuth App’s authorized redirect URLs. |
 
-Backend parity: see `../STAGE_ONE/.env.example` (`INSIGHTA_CLI_OAUTH_REDIRECT`, GitHub OAuth, JWT lifetimes).
+Backend parity: match your Insighta API `.env` (e.g. `INSIGHTA_CLI_OAUTH_REDIRECT`, GitHub OAuth, JWT lifetimes). See the backend project’s `.env.example` if you run the API locally.
 
 ## Auth
 
