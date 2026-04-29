@@ -23,13 +23,11 @@ from insighta_cli.auth import (
 )
 from insighta_cli.client import InsightaApiError, InsightaClient
 from insighta_cli.config import (
-    api_github_callback_url,
     api_base_url_from_store_or_default,
     clear_credentials_file,
-    default_api_base_url,
-    default_github_client_id,
     default_oauth_redirect,
     load_credentials,
+    resolve_github_client_id,
     save_credentials,
 )
 
@@ -147,13 +145,16 @@ def login(
     ] = None,
     github_client_id: Annotated[
         Optional[str],
-        typer.Option("--github-client-id", help="GitHub OAuth App client ID (matches backend app)"),
+        typer.Option(
+            "--github-client-id",
+            help="GitHub OAuth App client ID for the CLI (matches GITHUB_CLI_CLIENT_ID on the API)",
+        ),
     ] = None,
     redirect_uri: Annotated[
         Optional[str],
         typer.Option(
             "--redirect-uri",
-            help="Local listener URL; must match INSIGHTA_CLI_OAUTH_REDIRECT on the API (not the GitHub app callback)",
+            help="CLI listener URL — register this on the CLI GitHub OAuth App and set INSIGHTA_CLI_OAUTH_REDIRECT on the API to match",
         ),
     ] = None,
     no_browser: Annotated[
@@ -162,21 +163,22 @@ def login(
     ] = False,
 ) -> None:
     """Sign in with GitHub (opens a browser; stores tokens under ~/.insighta/)."""
-    base = (api_url or default_api_base_url()).rstrip("/")
-    cid = (github_client_id or default_github_client_id()).strip()
+    existing = load_credentials()
+    base = (api_url or api_base_url_from_store_or_default(existing)).rstrip("/")
+    cid = resolve_github_client_id(github_client_id, existing)
     if not cid:
         err_console.print(
-            "[red]Set INSIGHTA_GITHUB_CLIENT_ID or pass --github-client-id "
-            "(same value as GITHUB_CLIENT_ID on the API).[/red]"
+            "[red]GitHub CLI OAuth client ID required: pass --github-client-id once, set "
+            "INSIGHTA_GITHUB_CLIENT_ID, or reuse a prior login (must match API "
+            "GITHUB_CLI_CLIENT_ID).[/red]"
         )
         raise typer.Exit(1)
     redir_listen = (redirect_uri or default_oauth_redirect()).strip()
-    oauth_cb = api_github_callback_url(base)
     verifier, challenge = generate_pkce_pair()
     state = secrets.token_urlsafe(32)
     auth_url = build_authorize_url(
         client_id=cid,
-        redirect_uri=oauth_cb,
+        redirect_uri=redir_listen,
         state=state,
         code_challenge=challenge,
     )
@@ -204,7 +206,7 @@ def login(
             api_base_url=base,
             code=code,
             code_verifier=verifier,
-            redirect_uri=oauth_cb,
+            redirect_uri=redir_listen,
         )
     except RuntimeError as e:
         err_console.print(f"[red]{e}[/red]")
@@ -213,6 +215,7 @@ def login(
     save_credentials(
         {
             "api_base_url": base,
+            "github_client_id": cid,
             "access_token": body["access_token"],
             "refresh_token": body["refresh_token"],
         }

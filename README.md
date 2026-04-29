@@ -2,7 +2,13 @@
 
 Python **Typer** CLI for the **Insighta Labs+** profiles API. Every request sends **`X-API-Version: 1`** and **`Authorization: Bearer <access>`**. On **401**, the client tries **`POST /auth/refresh`** with the stored refresh token and retries once (then surfaces an error — run `insighta login` again if refresh is invalid).
 
-**Credentials** are stored in **`~/.insighta/credentials.json`** with restrictive permissions where the OS allows (intended **0600**). The file holds `api_base_url`, `access_token`, and `refresh_token`.
+**Credentials** are stored in **`~/.insighta/credentials.json`** with restrictive permissions where the OS allows (intended **0600**). The file holds:
+
+- **`api_base_url`** — API you authenticated against (re-used on the next `insighta login` if you omit `--api-url`).
+- **`github_client_id`** — GitHub **CLI** OAuth App client id (must match **`GITHUB_CLI_CLIENT_ID`** on the API); saved on successful login.
+- **`access_token`** / **`refresh_token`** — session tokens.
+
+Resolution order for **client id** on login: **`--github-client-id`** → **`INSIGHTA_GITHUB_CLIENT_ID`** → value from **`credentials.json`**. For **API URL**: **`--api-url`** → stored **`api_base_url`** → **`INSIGHTA_API_URL`** → default `http://127.0.0.1:8000`.
 
 **Repositories:** [insighta-cli](https://github.com/Trojanhorse7/insighta-cli) · [Web portal](https://github.com/Trojanhorse7/insighta-frontend). Point **`INSIGHTA_API_URL`** at your deployed Django API (same host as **`BACKEND_PUBLIC_URL`** on the server).
 
@@ -37,23 +43,21 @@ Entry point: **`insighta`** (`pyproject.toml` → `[project.scripts]`).
 | Variable | Purpose |
 |----------|---------|
 | `INSIGHTA_API_URL` | API base URL (default `http://127.0.0.1:8000`). Overridable with `login --api-url`; stored in credentials after login. |
-| `INSIGHTA_GITHUB_CLIENT_ID` | GitHub OAuth App **client id** — must match **`GITHUB_CLIENT_ID`** on the API. Overridable with `login --github-client-id`. |
-| `INSIGHTA_CLI_OAUTH_REDIRECT` | Local URL the **API** redirects to after GitHub hits the API callback (default `http://127.0.0.1:8765/callback`). Must match the API’s **`INSIGHTA_CLI_OAUTH_REDIRECT`** and `login --redirect-uri` if you override it. |
+| `INSIGHTA_GITHUB_CLIENT_ID` | GitHub **CLI** OAuth App client id — must match **`GITHUB_CLI_CLIENT_ID`** on the API. Overridable with `login --github-client-id`. |
+| `INSIGHTA_CLI_OAUTH_REDIRECT` | Local listener URL (default `http://127.0.0.1:8765/callback`). Register **this exact URL** as the CLI OAuth App’s callback on GitHub; must match the API **`INSIGHTA_CLI_OAUTH_REDIRECT`** and `login --redirect-uri` if overridden. |
 
-**GitHub OAuth App:** register **one** authorization callback URL: **`{API_ORIGIN}/auth/github/callback`** (same as `BACKEND_PUBLIC_URL` on the server). The CLI does **not** register loopback on GitHub; the API forwards `code` / `error` to your machine.
-
-See the backend **`.env.example`** for server-side parity (`BACKEND_PUBLIC_URL`, `INSIGHTA_CLI_OAUTH_REDIRECT`, GitHub secrets).
+**GitHub:** create one OAuth App for the **portal** (callback **`{BACKEND_PUBLIC_URL}/auth/github/callback`**) and one for the **CLI** with callback = your loopback URL. See backend **`.env.example`** (sets **`GITHUB_CLI_*`** and **`INSIGHTA_CLI_OAUTH_REDIRECT`**).
 
 ---
 
 ## Auth flow
 
-1. **`insighta login`** builds a GitHub authorize URL with PKCE; **`redirect_uri`** is always **`{api}/auth/github/callback`**.
-2. GitHub redirects to the API; for CLI sessions the API **302**s to **`INSIGHTA_CLI_OAUTH_REDIRECT`** with query params; the CLI’s local listener reads them.
-3. CLI **`POST /auth/github/cli`** with `code`, `code_verifier`, and `redirect_uri` = the same GitHub callback URL.
-4. Tokens are saved; CLI calls **`GET /auth/me`** and prints **`Logged in as @username`** when possible.
+1. **`insighta login`** opens GitHub with PKCE; **`redirect_uri`** is **`INSIGHTA_CLI_OAUTH_REDIRECT`** (local listener — must match the **CLI** OAuth App’s registered callback on GitHub).
+2. GitHub redirects the browser to that loopback URL with `?code=` / `?error=`; the CLI captures it.
+3. CLI **`POST /auth/github/cli`** on the API with `code`, `code_verifier`, and the same **`redirect_uri`**; the API validates it against **`INSIGHTA_CLI_OAUTH_REDIRECT`** and exchanges with **`GITHUB_CLI_CLIENT_ID`** / **`GITHUB_CLI_CLIENT_SECRET`**.
+4. Tokens are saved; CLI may call **`GET /auth/me`** and print **`Logged in as @username`**.
 
-Options: **`--no-browser`** (print URL), **`--api-url`**, **`--github-client-id`**, **`--redirect-uri`**.
+Options: **`--no-browser`** (print URL), **`--api-url`**, **`--github-client-id`**, **`--redirect-uri`** (must still match the configured **`INSIGHTA_CLI_OAUTH_REDIRECT`** allowlist on the API).
 
 **`insighta logout`** — **`POST /auth/logout`** with the stored refresh token, then deletes the credentials file.
 

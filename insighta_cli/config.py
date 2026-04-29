@@ -14,22 +14,40 @@ CONFIG_DIR = Path.home() / ".insighta"
 CREDENTIALS_PATH = CONFIG_DIR / "credentials.json"
 
 
-def api_github_callback_url(api_base: str) -> str:
-    """URL registered as the sole GitHub OAuth App callback (must match API + authorize request)."""
-    return f"{api_base.rstrip('/')}/auth/github/callback"
-
-
 def default_api_base_url() -> str:
     return os.environ.get("INSIGHTA_API_URL", _DEFAULT_API).strip().rstrip("/")
 
 
 def default_oauth_redirect() -> str:
-    """Local URL the API redirects to after /auth/github/callback for CLI flows. Must match API INSIGHTA_CLI_OAUTH_REDIRECT."""
+    """Local URL bound during login — must match GitHub CLI OAuth App callback and API INSIGHTA_CLI_OAUTH_REDIRECT."""
     return os.environ.get("INSIGHTA_CLI_OAUTH_REDIRECT", _DEFAULT_REDIRECT).strip()
 
 
 def default_github_client_id() -> str:
     return os.environ.get("INSIGHTA_GITHUB_CLIENT_ID", "").strip()
+
+
+def github_client_id_from_store(creds: dict[str, Any] | None) -> str:
+    """Client ID saved from a previous login (public; fine to persist with tokens)."""
+    if not creds:
+        return ""
+    raw = creds.get("github_client_id")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return ""
+
+
+def resolve_github_client_id(
+    override: str | None,
+    creds: dict[str, Any] | None,
+) -> str:
+    """CLI flag > env INSIGHTA_GITHUB_CLIENT_ID > credentials.json from last login."""
+    if override and str(override).strip():
+        return str(override).strip()
+    env = default_github_client_id()
+    if env:
+        return env
+    return github_client_id_from_store(creds)
 
 
 def load_credentials() -> dict[str, Any] | None:
