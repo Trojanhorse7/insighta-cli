@@ -30,14 +30,14 @@ class InsightaClient:
         *,
         persist_refresh: bool = True,
     ) -> None:
-        self.api_base_url = api_base_url.rstrip("/")
+        self.api_base_url = api_base_url.strip().rstrip("/")
         self.access_token = access_token
         self.refresh_token = refresh_token
         self._persist_refresh = persist_refresh
 
     @classmethod
     def from_credentials(cls, creds: dict) -> InsightaClient:
-        api = str(creds.get("api_base_url", "")).rstrip("/")
+        api = str(creds.get("api_base_url", "")).strip().rstrip("/")
         access = str(creds.get("access_token", ""))
         refresh = str(creds.get("refresh_token", ""))
         if not api or not access or not refresh:
@@ -55,15 +55,23 @@ class InsightaClient:
         existing["api_base_url"] = self.api_base_url
         save_credentials(existing)
 
-    def _headers(self) -> dict[str, str]:
+    def _headers(self, *, accept: str | None = None) -> dict[str, str]:
         return {
             API_VERSION_HEADER: API_VERSION,
             "Authorization": f"Bearer {self.access_token}",
-            "Accept": "application/json",
+            "Accept": accept if accept is not None else "application/json",
         }
 
     def _do_refresh(self) -> None:
-        data = refresh_tokens(api_base_url=self.api_base_url, refresh_token=self.refresh_token)
+        try:
+            data = refresh_tokens(
+                api_base_url=self.api_base_url, refresh_token=self.refresh_token
+            )
+        except RuntimeError as e:
+            raise InsightaApiError(
+                str(e) or "Session expired; run `insighta login` again.",
+                status_code=401,
+            ) from None
         self.access_token = str(data["access_token"])
         self.refresh_token = str(data["refresh_token"])
         self._persist_if_needed()
@@ -78,22 +86,26 @@ class InsightaClient:
         expect_json: bool = True,
     ) -> httpx.Response:
         url = f"{self.api_base_url}{path if path.startswith('/') else '/' + path}"
+        accept = "application/json" if expect_json else "*/*"
         with httpx.Client(timeout=120.0) as http:
             r = http.request(
                 method,
                 url,
                 params=params,
                 json=json_body,
-                headers=self._headers(),
+                headers=self._headers(accept=accept),
             )
             if r.status_code == 401 and self.refresh_token:
-                self._do_refresh()
+                try:
+                    self._do_refresh()
+                except InsightaApiError:
+                    raise
                 r = http.request(
                     method,
                     url,
                     params=params,
                     json=json_body,
-                    headers=self._headers(),
+                    headers=self._headers(accept=accept),
                 )
 
             if expect_json and r.headers.get("content-type", "").startswith("application/json"):
@@ -107,7 +119,10 @@ class InsightaClient:
                         if isinstance(body, dict)
                         else (r.text or f"HTTP {r.status_code}")
                     )
-                    raise InsightaApiError(str(msg), status_code=r.status_code, body=body)
+                    text = str(msg)
+                    if r.status_code == 404:
+                        text = f"{text} — {method} {url}"
+                    raise InsightaApiError(text, status_code=r.status_code, body=body)
                 return r
 
             if r.status_code >= 400:
@@ -116,7 +131,10 @@ class InsightaClient:
                     msg = body.get("message", r.text) if isinstance(body, dict) else r.text
                 except json.JSONDecodeError:
                     msg = r.text
-                raise InsightaApiError(str(msg or f"HTTP {r.status_code}"), status_code=r.status_code)
+                text = str(msg or f"HTTP {r.status_code}")
+                if r.status_code == 404:
+                    text = f"{text} — {method} {url}"
+                raise InsightaApiError(text, status_code=r.status_code)
 
             return r
 

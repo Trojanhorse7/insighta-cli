@@ -164,7 +164,7 @@ def login(
 ) -> None:
     """Sign in with GitHub (opens a browser; stores tokens under ~/.insighta/)."""
     existing = load_credentials()
-    base = (api_url or api_base_url_from_store_or_default(existing)).rstrip("/")
+    base = (api_url or api_base_url_from_store_or_default(existing)).strip().rstrip("/")
     cid = resolve_github_client_id(github_client_id, existing)
     if not cid:
         err_console.print(
@@ -532,11 +532,36 @@ def profiles_export(
         order=order,
     )
     params = {k: v for k, v in base_params.items() if k not in ("page", "limit")}
-    params["format"] = "csv"
+    params["export_format"] = "csv"
+    export_path = "/api/profiles/export"
     try:
         with console.status("[cyan]Exporting CSV…[/]"):
             client = _get_client()
-            r = client.request("GET", "/api/profiles/export", params=params, expect_json=False)
+            r = client.request(
+                "GET", export_path, params=params, expect_json=False
+            )
+        if r.status_code == 200:
+            ct = (r.headers.get("content-type") or "").lower()
+            preview = (r.text or "")[:300].strip()
+            if "csv" not in ct and "octet-stream" not in ct:
+                full_url = f"{client.api_base_url}{export_path}"
+                raise InsightaApiError(
+                    "Export did not return CSV. Check api_base_url in "
+                    "~/.insighta/credentials.json (API origin, no path suffix). "
+                    f"Content-Type: {ct or 'unknown'}. "
+                    f"Preview: {preview!r}. Request: {full_url}",
+                    status_code=r.status_code,
+                )
+            if preview.lower().startswith("<!") or (
+                preview and "not found" in preview.lower()
+            ):
+                raise InsightaApiError(
+                    "Export response looks like an error page, not CSV. "
+                    "Confirm the server exposes GET /api/profiles/export and "
+                    "api_base_url is correct. "
+                    f"Preview: {preview!r}",
+                    status_code=r.status_code,
+                )
         target.write_text(r.text, encoding="utf-8")
         console.print(f"[green]Wrote {target.resolve()}[/green]")
     except InsightaApiError as e:

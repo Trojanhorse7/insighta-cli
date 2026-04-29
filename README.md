@@ -8,7 +8,7 @@ Python **Typer** CLI for the **Insighta Labs+** profiles API. Every request send
 - **`github_client_id`** — GitHub **CLI** OAuth App client id (must match **`GITHUB_CLI_CLIENT_ID`** on the API); saved on successful login.
 - **`access_token`** / **`refresh_token`** — session tokens.
 
-Resolution order for **client id** on login: **`--github-client-id`** → **`INSIGHTA_GITHUB_CLIENT_ID`** → value from **`credentials.json`**. For **API URL**: **`--api-url`** → stored **`api_base_url`** → **`INSIGHTA_API_URL`** → default `http://127.0.0.1:8000`.
+Resolution order for **client id** on login: **`--github-client-id`** → **`INSIGHTA_GITHUB_CLIENT_ID`** → value from **`credentials.json`**. For **API URL**: **`--api-url`** → stored **`api_base_url`** → **`INSIGHTA_API_URL`** → default `http://127.0.0.1:8000`. Use the API **origin only** (e.g. `https://your-host` with no trailing slash); paths such as `/api/profiles` are added by the CLI.
 
 **Repositories:** [insighta-cli](https://github.com/Trojanhorse7/insighta-cli) · [Web portal](https://github.com/Trojanhorse7/insighta-frontend). Point **`INSIGHTA_API_URL`** at your deployed Django API (same host as **`BACKEND_PUBLIC_URL`** on the server).
 
@@ -110,11 +110,11 @@ insighta profiles search "young males from nigeria"
 | `insighta profiles get <uuid>` | Same as **`show`**. |
 | `insighta profiles create --name "Harriet Tubman"` | **`POST /api/profiles`** (API must grant **admin**). |
 | `insighta profiles delete <uuid>` | **`DELETE`** (admin); confirms unless **`--yes`**. |
-| `insighta profiles export --format csv` | **`GET /api/profiles/export`** with list filters; CSV only today. |
+| `insighta profiles export --format csv` | **`GET /api/profiles/export`** with **`export_format=csv`** (not `format=` — DRF reserves that); CSV only today. |
 
 **Export output**
 
-- **`--format csv`** (default **`csv`**; other values are rejected).
+- **`--format csv`** (default **`csv`**; other values are rejected). The HTTP request sends **`export_format=csv`**.
 - **`--output` / `-o`** optional. If omitted, writes **`insighta-profiles-export-<UTC-timestamp>.csv`** in the **current working directory**.
 - Same filters as **`profiles list`** (`--gender`, `--country`, ages, probabilities, **`--sort-by`**, **`--order`**).
 
