@@ -22,6 +22,7 @@ from insighta_cli.auth import (
 )
 from insighta_cli.client import InsightaApiError, InsightaClient
 from insighta_cli.config import (
+    api_github_callback_url,
     api_base_url_from_store_or_default,
     clear_credentials_file,
     default_api_base_url,
@@ -115,7 +116,10 @@ def login(
     ] = None,
     redirect_uri: Annotated[
         Optional[str],
-        typer.Option("--redirect-uri", help="Must match a callback URL on the GitHub OAuth app"),
+        typer.Option(
+            "--redirect-uri",
+            help="Local listener URL; must match INSIGHTA_CLI_OAUTH_REDIRECT on the API (not the GitHub app callback)",
+        ),
     ] = None,
     no_browser: Annotated[
         bool,
@@ -131,12 +135,13 @@ def login(
             "(same value as GITHUB_CLIENT_ID on the API).[/red]"
         )
         raise typer.Exit(1)
-    redir = (redirect_uri or default_oauth_redirect()).strip()
+    redir_listen = (redirect_uri or default_oauth_redirect()).strip()
+    oauth_cb = api_github_callback_url(base)
     verifier, challenge = generate_pkce_pair()
     state = secrets.token_urlsafe(32)
     auth_url = build_authorize_url(
         client_id=cid,
-        redirect_uri=redir,
+        redirect_uri=oauth_cb,
         state=state,
         code_challenge=challenge,
     )
@@ -151,7 +156,7 @@ def login(
         webbrowser.open(url)
 
     code, err = wait_for_oauth_callback(
-        redirect_uri=redir,
+        redirect_uri=redir_listen,
         expected_state=state,
         authorize_url=auth_url,
         open_browser=_open,
@@ -164,7 +169,7 @@ def login(
             api_base_url=base,
             code=code,
             code_verifier=verifier,
-            redirect_uri=redir,
+            redirect_uri=oauth_cb,
         )
     except RuntimeError as e:
         console.print(f"[red]{e}[/red]")

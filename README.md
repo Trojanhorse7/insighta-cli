@@ -30,14 +30,16 @@ python -m insighta_cli --help
 |----------|---------|
 | `INSIGHTA_API_URL` | API base URL (default `http://127.0.0.1:8000`). Saved in credentials after `login`. |
 | `INSIGHTA_GITHUB_CLIENT_ID` | GitHub OAuth App **client id** — must match **`GITHUB_CLIENT_ID`** on the API server. |
-| `INSIGHTA_CLI_OAUTH_REDIRECT` | Loopback callback URL (default `http://127.0.0.1:8765/callback`). **Register this** in the GitHub OAuth App’s authorized redirect URLs. |
+| `INSIGHTA_CLI_OAUTH_REDIRECT` | Local URL the **API** redirects to after GitHub (default `http://127.0.0.1:8765/callback`). Must match **`INSIGHTA_CLI_OAUTH_REDIRECT`** on the server and **`--redirect-uri`** if you override it. |
 
-Backend parity: match your Insighta API `.env` (e.g. `INSIGHTA_CLI_OAUTH_REDIRECT`, GitHub OAuth, JWT lifetimes). See the backend project’s `.env.example` if you run the API locally.
+**GitHub OAuth App** (classic “OAuth App”): you can register **only one** authorization callback URL. Set it to **`{INSIGHTA_API_URL}/auth/github/callback`** (same host as `BACKEND_PUBLIC_URL` on the API). The CLI does **not** register the loopback on GitHub; the API forwards the `code` to your machine.
+
+Backend parity: match your Insighta API `.env` (especially `INSIGHTA_CLI_OAUTH_REDIRECT`, `BACKEND_PUBLIC_URL`). See the backend `.env.example`.
 
 ## Auth
 
-1. Register redirect `http://127.0.0.1:8765/callback` on your GitHub OAuth App (same app as the backend).
-2. `insighta login` opens a browser, receives the OAuth `code` on localhost, exchanges via **`POST /auth/github/cli`**, then saves tokens.
+1. On GitHub: **Authorization callback URL** = **`https://<your-api-host>/auth/github/callback`** (exactly; includes local dev if that is your API).
+2. `insighta login` sends `redirect_uri` = that same URL to GitHub, listens on **`INSIGHTA_CLI_OAUTH_REDIRECT`**, receives a redirect from the API with `?code=` or `?error=`, then calls **`POST /auth/github/cli`**.
 
 Use `insighta login --no-browser` if you must copy the authorize URL manually. Use `--api-url` / `--github-client-id` / `--redirect-uri` to override env defaults.
 

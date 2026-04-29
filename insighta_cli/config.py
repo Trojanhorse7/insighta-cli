@@ -14,11 +14,17 @@ CONFIG_DIR = Path.home() / ".insighta"
 CREDENTIALS_PATH = CONFIG_DIR / "credentials.json"
 
 
+def api_github_callback_url(api_base: str) -> str:
+    """URL registered as the sole GitHub OAuth App callback (must match API + authorize request)."""
+    return f"{api_base.rstrip('/')}/auth/github/callback"
+
+
 def default_api_base_url() -> str:
     return os.environ.get("INSIGHTA_API_URL", _DEFAULT_API).strip().rstrip("/")
 
 
 def default_oauth_redirect() -> str:
+    """Local URL the API redirects to after /auth/github/callback for CLI flows. Must match API INSIGHTA_CLI_OAUTH_REDIRECT."""
     return os.environ.get("INSIGHTA_CLI_OAUTH_REDIRECT", _DEFAULT_REDIRECT).strip()
 
 
